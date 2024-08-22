@@ -6,6 +6,7 @@ import javax.servlet.http.HttpSession;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.webauthn.app.authenticator.Authenticator;
+import com.webauthn.app.service.RegistrationService;
 import com.webauthn.app.user.AppUser;
 import com.webauthn.app.utility.Utility;
 import com.yubico.webauthn.AssertionRequest;
@@ -40,11 +41,11 @@ import org.springframework.web.servlet.ModelAndView;
 public class AuthController {
 
     private RelyingParty relyingParty;
-    private RegistrationService service;
+    private RegistrationService registrationService;
 
-    AuthController(RegistrationService service, RelyingParty relyingPary) {
+    AuthController(RegistrationService registrationService, RelyingParty relyingPary) {
         this.relyingParty = relyingPary;
-        this.service = service;
+        this.registrationService = registrationService;
     }
 
     @GetMapping("/")
@@ -64,7 +65,7 @@ public class AuthController {
         @RequestParam String display,
         HttpSession session
     ) {
-        AppUser existingUser = service.getUserRepo().findByUsername(username);
+        AppUser existingUser = registrationService.findByUsername(username);
         if (existingUser == null) {
             UserIdentity userIdentity = UserIdentity.builder()
                 .name(username)
@@ -72,10 +73,12 @@ public class AuthController {
                 .id(Utility.generateRandom(32))
                 .build();
             AppUser saveUser = new AppUser(userIdentity);
-            service.getUserRepo().save(saveUser);
-            String response = newAuthRegistration(saveUser, session);
+            saveUser = registrationService.saveUser(saveUser);
+            System.out.println("New saved user id = "+saveUser.getId());
+            String response = newAuthRegistration2(saveUser, session);
             return response;
         } else {
+            System.out.println("Username " + username + " already exists. Choose a new name.");
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Username " + username + " already exists. Choose a new name.");
         }
     }
@@ -86,7 +89,8 @@ public class AuthController {
         @RequestParam AppUser user,
         HttpSession session
     ) {
-        AppUser existingUser = service.getUserRepo().findByHandle(user.getHandle());
+
+        AppUser existingUser = registrationService.findByHandle(user.getHandle());
         if (existingUser != null) {
             UserIdentity userIdentity = user.toUserIdentity();
             StartRegistrationOptions registrationOptions = StartRegistrationOptions.builder()
@@ -95,25 +99,56 @@ public class AuthController {
             PublicKeyCredentialCreationOptions registration = relyingParty.startRegistration(registrationOptions);
             session.setAttribute(userIdentity.getDisplayName(), registration);
             try {
-                    return registration.toCredentialsCreateJson();
+                String sendingResponse = registration.toCredentialsCreateJson();
+                System.out.println(sendingResponse);
+                return sendingResponse;
             } catch (JsonProcessingException e) {
+                e.printStackTrace();
                     throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error processing JSON.", e);
             }
         } else {
+            System.out.println("User " + user.getUsername() + " does not exist. Please register.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "User " + user.getUsername() + " does not exist. Please register.");
+        }
+    }
+
+    public String newAuthRegistration2(
+            AppUser user,
+            HttpSession session
+    ) {
+
+        AppUser existingUser = registrationService.findByHandle(user.getHandle());
+        if (existingUser != null) {
+            UserIdentity userIdentity = user.toUserIdentity();
+            StartRegistrationOptions registrationOptions = StartRegistrationOptions.builder()
+                    .user(userIdentity)
+                    .build();
+            PublicKeyCredentialCreationOptions registration = relyingParty.startRegistration(registrationOptions);
+            session.setAttribute(userIdentity.getDisplayName(), registration);
+            try {
+                String sendingResponse = registration.toCredentialsCreateJson();
+                System.out.println(sendingResponse);
+                return sendingResponse;
+            } catch (JsonProcessingException e) {
+                e.printStackTrace();
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error processing JSON.", e);
+            }
+        } else {
+            System.out.println("User " + user.getUsername() + " does not exist. Please register.");
             throw new ResponseStatusException(HttpStatus.CONFLICT, "User " + user.getUsername() + " does not exist. Please register.");
         }
     }
 
     @PostMapping("/finishauth")
     @ResponseBody
-    public ModelAndView finishRegisration(
+    public ModelAndView finishRegistration(
         @RequestParam String credential,
         @RequestParam String username,
         @RequestParam String credname,
         HttpSession session
     ) {
             try {
-                AppUser user = service.getUserRepo().findByUsername(username);
+                AppUser user = registrationService.findByUsername(username);
                 PublicKeyCredentialCreationOptions requestOptions = (PublicKeyCredentialCreationOptions) session.getAttribute(user.getUsername());
                 if (requestOptions != null) {
                     PublicKeyCredential<AuthenticatorAttestationResponse, ClientRegistrationExtensionOutputs> pkc =
@@ -124,15 +159,18 @@ public class AuthController {
                         .build();
                     RegistrationResult result = relyingParty.finishRegistration(options);
                     Authenticator savedAuth = new Authenticator(result, pkc.getResponse(), user, credname);
-                    service.getAuthRepository().save(savedAuth);
+                    registrationService.saveUserAuth(savedAuth);
                     return new ModelAndView("redirect:/login", HttpStatus.SEE_OTHER);
                 } else {
+                    System.out.println("Cached request expired. Try to register again!");
                     throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Cached request expired. Try to register again!");
                 }
             } catch (RegistrationFailedException e) {
+                e.printStackTrace();
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Registration failed.", e);
             } catch (IOException e) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to save credenital, please try again!", e);
+                e.printStackTrace();
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to save credential, please try again!", e);
             }
     }
 

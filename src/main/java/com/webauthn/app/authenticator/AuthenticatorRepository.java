@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface AuthenticatorRepository extends CrudRepository<Authenticator, Long> {
-    Optional<Authenticator> findByCredentialId(ByteArray credentialId);
+    Optional<Authenticator> findByCredentialId(String credentialId);
     List<Authenticator> findAllByUser (AppUser user);
-    List<Authenticator> findAllByCredentialId(ByteArray credentialId);
+    List<Authenticator> findAllByCredentialId(String credentialId);
 }

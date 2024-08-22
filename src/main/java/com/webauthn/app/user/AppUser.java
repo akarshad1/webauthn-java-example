@@ -5,7 +5,7 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
-import javax.persistence.Lob;
+
 
 import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.UserIdentity;
@@ -27,12 +27,11 @@ public class AppUser {
     @Column(nullable = false)
     private String displayName;
 
-    @Lob
-    @Column(nullable = false, length = 64)
-    private ByteArray handle;
+    @Column(nullable = false)
+    private String handle;
 
     public AppUser(UserIdentity user) {
-        this.handle = user.getId();
+        this.handle = user.getId().getBase64();
         this.username = user.getName();
         this.displayName = user.getDisplayName();
     }
@@ -41,7 +40,7 @@ public class AppUser {
         return UserIdentity.builder()
             .name(getUsername())
             .displayName(getDisplayName())
-            .id(getHandle())
+            .id(ByteArray.fromBase64(getHandle()))
             .build();
     }
 }
