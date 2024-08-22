@@ -1,32 +1,14 @@
 package com.webauthn.app.web;
 
-import java.io.IOException;
-
-import javax.servlet.http.HttpSession;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.webauthn.app.authenticator.Authenticator;
 import com.webauthn.app.service.RegistrationService;
 import com.webauthn.app.user.AppUser;
 import com.webauthn.app.utility.Utility;
-import com.yubico.webauthn.AssertionRequest;
-import com.yubico.webauthn.AssertionResult;
-import com.yubico.webauthn.FinishAssertionOptions;
-import com.yubico.webauthn.FinishRegistrationOptions;
-import com.yubico.webauthn.RegistrationResult;
-import com.yubico.webauthn.RelyingParty;
-import com.yubico.webauthn.StartAssertionOptions;
-import com.yubico.webauthn.StartRegistrationOptions;
-import com.yubico.webauthn.data.AuthenticatorAssertionResponse;
-import com.yubico.webauthn.data.AuthenticatorAttestationResponse;
-import com.yubico.webauthn.data.ClientAssertionExtensionOutputs;
-import com.yubico.webauthn.data.ClientRegistrationExtensionOutputs;
-import com.yubico.webauthn.data.PublicKeyCredential;
-import com.yubico.webauthn.data.PublicKeyCredentialCreationOptions;
-import com.yubico.webauthn.data.UserIdentity;
+import com.yubico.webauthn.*;
+import com.yubico.webauthn.data.*;
 import com.yubico.webauthn.exception.AssertionFailedException;
 import com.yubico.webauthn.exception.RegistrationFailedException;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -37,11 +19,14 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.ModelAndView;
 
+import javax.servlet.http.HttpSession;
+import java.io.IOException;
+
 @Controller
 public class AuthController {
 
-    private RelyingParty relyingParty;
-    private RegistrationService registrationService;
+    private final RelyingParty relyingParty;
+    private final RegistrationService registrationService;
 
     AuthController(RegistrationService registrationService, RelyingParty relyingPary) {
         this.relyingParty = relyingPary;
@@ -61,20 +46,20 @@ public class AuthController {
     @PostMapping("/register")
     @ResponseBody
     public String newUserRegistration(
-        @RequestParam String username,
-        @RequestParam String display,
-        HttpSession session
+            @RequestParam String username,
+            @RequestParam String display,
+            HttpSession session
     ) {
         AppUser existingUser = registrationService.findByUsername(username);
         if (existingUser == null) {
             UserIdentity userIdentity = UserIdentity.builder()
-                .name(username)
-                .displayName(display)
-                .id(Utility.generateRandom(32))
-                .build();
+                    .name(username)
+                    .displayName(display)
+                    .id(Utility.generateRandom(32))
+                    .build();
             AppUser saveUser = new AppUser(userIdentity);
             saveUser = registrationService.saveUser(saveUser);
-            System.out.println("New saved user id = "+saveUser.getId());
+            System.out.println("New saved user id = " + saveUser.getId());
             String response = newAuthRegistration2(saveUser, session);
             return response;
         } else {
@@ -86,16 +71,16 @@ public class AuthController {
     @PostMapping("/registerauth")
     @ResponseBody
     public String newAuthRegistration(
-        @RequestParam AppUser user,
-        HttpSession session
+            @RequestParam AppUser user,
+            HttpSession session
     ) {
 
         AppUser existingUser = registrationService.findByHandle(user.getHandle());
         if (existingUser != null) {
             UserIdentity userIdentity = user.toUserIdentity();
             StartRegistrationOptions registrationOptions = StartRegistrationOptions.builder()
-            .user(userIdentity)
-            .build();
+                    .user(userIdentity)
+                    .build();
             PublicKeyCredentialCreationOptions registration = relyingParty.startRegistration(registrationOptions);
             session.setAttribute(userIdentity.getDisplayName(), registration);
             try {
@@ -104,7 +89,7 @@ public class AuthController {
                 return sendingResponse;
             } catch (JsonProcessingException e) {
                 e.printStackTrace();
-                    throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error processing JSON.", e);
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error processing JSON.", e);
             }
         } else {
             System.out.println("User " + user.getUsername() + " does not exist. Please register.");
@@ -142,36 +127,36 @@ public class AuthController {
     @PostMapping("/finishauth")
     @ResponseBody
     public ModelAndView finishRegistration(
-        @RequestParam String credential,
-        @RequestParam String username,
-        @RequestParam String credname,
-        HttpSession session
+            @RequestParam String credential,
+            @RequestParam String username,
+            @RequestParam String credname,
+            HttpSession session
     ) {
-            try {
-                AppUser user = registrationService.findByUsername(username);
-                PublicKeyCredentialCreationOptions requestOptions = (PublicKeyCredentialCreationOptions) session.getAttribute(user.getUsername());
-                if (requestOptions != null) {
-                    PublicKeyCredential<AuthenticatorAttestationResponse, ClientRegistrationExtensionOutputs> pkc =
-                    PublicKeyCredential.parseRegistrationResponseJson(credential);
-                    FinishRegistrationOptions options = FinishRegistrationOptions.builder()
+        try {
+            AppUser user = registrationService.findByUsername(username);
+            PublicKeyCredentialCreationOptions requestOptions = (PublicKeyCredentialCreationOptions) session.getAttribute(user.getUsername());
+            if (requestOptions != null) {
+                PublicKeyCredential<AuthenticatorAttestationResponse, ClientRegistrationExtensionOutputs> pkc =
+                        PublicKeyCredential.parseRegistrationResponseJson(credential);
+                FinishRegistrationOptions options = FinishRegistrationOptions.builder()
                         .request(requestOptions)
                         .response(pkc)
                         .build();
-                    RegistrationResult result = relyingParty.finishRegistration(options);
-                    Authenticator savedAuth = new Authenticator(result, pkc.getResponse(), user, credname);
-                    registrationService.saveUserAuth(savedAuth);
-                    return new ModelAndView("redirect:/login", HttpStatus.SEE_OTHER);
-                } else {
-                    System.out.println("Cached request expired. Try to register again!");
-                    throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Cached request expired. Try to register again!");
-                }
-            } catch (RegistrationFailedException e) {
-                e.printStackTrace();
-                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Registration failed.", e);
-            } catch (IOException e) {
-                e.printStackTrace();
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to save credential, please try again!", e);
+                RegistrationResult result = relyingParty.finishRegistration(options);
+                Authenticator savedAuth = new Authenticator(result, pkc.getResponse(), user, credname);
+                registrationService.saveUserAuth(savedAuth);
+                return new ModelAndView("redirect:/login", HttpStatus.SEE_OTHER);
+            } else {
+                System.out.println("Cached request expired. Try to register again!");
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Cached request expired. Try to register again!");
             }
+        } catch (RegistrationFailedException e) {
+            e.printStackTrace();
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Registration failed.", e);
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to save credential, please try again!", e);
+        }
     }
 
     @GetMapping("/login")
@@ -182,12 +167,12 @@ public class AuthController {
     @PostMapping("/login")
     @ResponseBody
     public String startLogin(
-        @RequestParam String username,
-        HttpSession session
+            @RequestParam String username,
+            HttpSession session
     ) {
         AssertionRequest request = relyingParty.startAssertion(StartAssertionOptions.builder()
-            .username(username)
-            .build());
+                .username(username)
+                .build());
         try {
             session.setAttribute(username, request);
             return request.toCredentialsGetJson();
@@ -198,19 +183,19 @@ public class AuthController {
 
     @PostMapping("/welcome")
     public String finishLogin(
-        @RequestParam String credential,
-        @RequestParam String username,
-        Model model,
-        HttpSession session
+            @RequestParam String credential,
+            @RequestParam String username,
+            Model model,
+            HttpSession session
     ) {
         try {
             PublicKeyCredential<AuthenticatorAssertionResponse, ClientAssertionExtensionOutputs> pkc;
             pkc = PublicKeyCredential.parseAssertionResponseJson(credential);
-            AssertionRequest request = (AssertionRequest)session.getAttribute(username);
+            AssertionRequest request = (AssertionRequest) session.getAttribute(username);
             AssertionResult result = relyingParty.finishAssertion(FinishAssertionOptions.builder()
-                .request(request)
-                .response(pkc)
-                .build());
+                    .request(request)
+                    .response(pkc)
+                    .build());
             if (result.isSuccess()) {
                 model.addAttribute("username", username);
                 return "welcome";

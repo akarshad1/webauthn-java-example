@@ -1,8 +1,5 @@
 package com.webauthn.app.service;
 
-import java.util.Optional;
-import java.util.Set;
-
 import com.webauthn.app.authenticator.Authenticator;
 import com.webauthn.app.authenticator.AuthenticatorRepository;
 import com.webauthn.app.repo.RegistrationRepo;
@@ -11,10 +8,12 @@ import com.webauthn.app.user.UserRepository;
 import com.yubico.webauthn.RegisteredCredential;
 import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.PublicKeyCredentialDescriptor;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class RegistrationService {
@@ -25,6 +24,7 @@ public class RegistrationService {
 
     @Autowired
     private RegistrationRepo registrationRepo;
+
     @Transactional
     public Set<PublicKeyCredentialDescriptor> getCredentialIdsForUsername(String username) {
         return registrationRepo.getCredentialIdsForUsername(username);
@@ -56,13 +56,14 @@ public class RegistrationService {
     public AppUser findByUsername(String username) {
         return userRepo.findByUsername(username);
     }
+
     @Transactional
     public AppUser saveUser(AppUser user) {
         return userRepo.save(user);
     }
 
     @Transactional
-    public AppUser findByHandle(String handle){
+    public AppUser findByHandle(String handle) {
         return userRepo.findByHandle(handle);
     }
 

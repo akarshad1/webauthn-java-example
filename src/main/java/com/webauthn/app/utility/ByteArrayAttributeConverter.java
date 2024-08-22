@@ -1,9 +1,9 @@
 package com.webauthn.app.utility;
 
+import com.yubico.webauthn.data.ByteArray;
+
 import javax.persistence.AttributeConverter;
 import javax.persistence.Converter;
-
-import com.yubico.webauthn.data.ByteArray;
 
 @Converter(autoApply = true)
 public class ByteArrayAttributeConverter implements AttributeConverter<ByteArray, byte[]> {

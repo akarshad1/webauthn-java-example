@@ -1,11 +1,6 @@
 package com.webauthn.app.repo;
 
 
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import com.webauthn.app.authenticator.Authenticator;
 import com.webauthn.app.authenticator.AuthenticatorRepository;
 import com.webauthn.app.user.AppUser;
@@ -14,16 +9,19 @@ import com.yubico.webauthn.CredentialRepository;
 import com.yubico.webauthn.RegisteredCredential;
 import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.PublicKeyCredentialDescriptor;
-
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
-
-import lombok.Getter;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Repository
 @Getter
-public class RegistrationRepo implements CredentialRepository  {
+public class RegistrationRepo implements CredentialRepository {
     @Autowired
     private UserRepository userRepo;
     @Autowired

@@ -1,12 +1,11 @@
 package com.webauthn.app.configuration;
 
-import java.util.Set;
-
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
-import lombok.Getter;
-import lombok.Setter;
+import java.util.Set;
 
 @Configuration
 @ConfigurationProperties(prefix = "authn")
