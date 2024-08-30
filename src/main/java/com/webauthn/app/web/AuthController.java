@@ -132,6 +132,7 @@ public class AuthController {
             @RequestParam String credname,
             HttpSession session
     ) {
+        System.out.println("finishRegistration: \n " + credential + " \n" + username + " \n " + credname);
         try {
             AppUser user = registrationService.findByUsername(username);
             PublicKeyCredentialCreationOptions requestOptions = (PublicKeyCredentialCreationOptions) session.getAttribute(user.getUsername());

@@ -1,6 +1,7 @@
 package com.webauthn.app;
 
 import com.webauthn.app.configuration.WebAuthProperties;
+import com.webauthn.app.dto.AppCache;
 import com.webauthn.app.repo.RegistrationRepo;
 import com.yubico.webauthn.RelyingParty;
 import com.yubico.webauthn.data.RelyingPartyIdentity;
@@ -29,5 +30,10 @@ public class AppApplication {
                 .credentialRepository(registrationRepo)
                 .origins(properties.getOrigin())
                 .build();
+    }
+
+    @Bean
+    public AppCache appCache() {
+        return new AppCache();
     }
 }
